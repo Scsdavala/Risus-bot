@@ -1,11 +1,14 @@
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 import random
+import os
 
-BOT_TOKEN = "8331009511:AAGZIDOMzAdL_QlE5MG5bJgY7xPD0aa-bDc"
+# === ТВОЇ ДАНІ ===
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8331009511:AAGZIDOMzAdL_QlE5MG5bJgY7xPD0aa-bDc")
 BOT_NAME = "Risus"
-ADMIN_ID = 453158012
+ADMIN_ID = int(os.getenv("ADMIN_ID", "453158012"))
 
+# === ТЕКСТИ ===
 WELCOME_TEXT = """
 *Привіт, я невидимий співрозмовник 🤫*  
 Мені неважливо, як ти виглядаєш і де ти знаходишся.  
@@ -57,6 +60,7 @@ PSYCH_TIPS = [
     "Дозволь собі бути вразливим. Це не слабкість — це сила."
 ]
 
+# === МЕНЮ ===
 def main_menu():
     keyboard = [
         [InlineKeyboardButton("Розпочати розмову", callback_data="start_chat")],
@@ -66,8 +70,7 @@ def main_menu():
     ]
     return InlineKeyboardMarkup(keyboard)
 
-CHAT_ACTIVE = "chat_active"
-
+# === ХЕНДЛЕРИ ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(WELCOME_TEXT, parse_mode='Markdown', reply_markup=main_menu())
 
@@ -76,7 +79,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
 
     if query.data == "start_chat":
-        context.user_data[CHAT_ACTIVE] = True
+        context.user_data["chat_active"] = True
         await query.edit_message_text(
             "Чат розпочато! Пиши — я передам твої слова адміну.\n"
             "Або натисни /stop, щоб завершити.",
@@ -97,16 +100,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Пиши /start, коли захочеш повернутись.",
             parse_mode='Markdown'
         )
-        if context.user_data.get(CHAT_ACTIVE):
-            context.user_data[CHAT_ACTIVE] = False
+        if context.user_data.get("chat_active"):
+            context.user_data["chat_active"] = False
 
     elif query.data == "back":
         await query.edit_message_text(WELCOME_TEXT, parse_mode='Markdown', reply_markup=main_menu())
-        if context.user_data.get(CHAT_ACTIVE):
-            context.user_data[CHAT_ACTIVE] = False
+        if context.user_data.get("chat_active"):
+            context.user_data["chat_active"] = False
 
 async def forward_to_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if context.user_data.get(CHAT_ACTIVE):
+    if context.user_data.get("chat_active"):
         user = update.message.from_user
         username = f"@{user.username}" if user.username else "Анонім"
         await context.bot.send_message(
@@ -116,8 +119,8 @@ async def forward_to_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Повідомлення відправлено. Я чекаю відповіді...")
 
 async def stop_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if context.user_data.get(CHAT_ACTIVE):
-        context.user_data[CHAT_ACTIVE] = False
+    if context.user_data.get("chat_active"):
+        context.user_data["chat_active"] = False
         tip = random.choice(PSYCH_TIPS)
         await update.message.reply_text(
             f"Чат завершено.\n"
@@ -130,11 +133,17 @@ async def stop_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def back_button():
     return InlineKeyboardMarkup([[InlineKeyboardButton("Назад", callback_data="back")]])
 
+# === ЗАПУСК ===
 if __name__ == '__main__':
-    app = Application.builder().token(BOT_TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(button_handler))
-    app.add_handler(CommandHandler("stop", stop_chat))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, forward_to_admin))
-    print(f"{BOT_NAME} запущений!")
-    app.run_polling()
+    try:
+        app = Application.builder().token(BOT_TOKEN).build()
+
+        app.add_handler(CommandHandler("start", start))
+        app.add_handler(CallbackQueryHandler(button_handler))
+        app.add_handler(CommandHandler("stop", stop_chat))
+        app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, forward_to_admin))
+
+        print(f"{BOT_NAME} запущений!")
+        app.run_polling()
+    except Exception as e:
+        print(f"Помилка запуску: {e}")
